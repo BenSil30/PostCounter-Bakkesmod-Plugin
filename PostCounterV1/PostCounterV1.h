@@ -19,6 +19,7 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 	void onUnload() override; // Uncomment and implement if you need a unload method
 	void on_post_hit();
 	void on_hit_goal();
+	void on_goal();
 	bool check_if_player_touched_last(CarWrapper caller);
 
 	void clear_shot_stats();

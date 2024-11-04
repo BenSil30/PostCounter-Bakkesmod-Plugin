@@ -16,7 +16,7 @@ void PostCounterV1::onLoad()
 
 	//subscribe methods to the correct events
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
-	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventScore", std::bind(&PostCounterV1::on_hit_goal, this));
+	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitGoal", std::bind(&PostCounterV1::on_goal, this));
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
 		player_touched_last = check_if_player_touched_last(caller);
 		});
@@ -86,22 +86,14 @@ void PostCounterV1::on_post_hit() {
 }
 
 void PostCounterV1::on_hit_goal() {
-	LOG("here");
 	if (!player_touched_last) return;
-	ServerWrapper server = gameWrapper->GetCurrentGameState();
-	if (!server) return;
-	BallWrapper ball = server.GetBall();
-	if (!ball) return;
+	update_shot_stats(1.f, 1.f, 0.f);
+	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
+}
 
-	const Vector ball_hit_loc = ball.GetLocation();
-	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < CROSSBAR_HEIGHT)
-		&& (ball_hit_loc.X > -4096.f && ball_hit_loc.X > 4096.f)) {
-		update_shot_stats(1.f, 1.f, 0.f);
-		LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
-	}
-	else {
-		LOG("no here");
-	}
+void PostCounterV1::on_goal() {
+	update_shot_stats(1.f, 1.f, 0.f);
+	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
 bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
