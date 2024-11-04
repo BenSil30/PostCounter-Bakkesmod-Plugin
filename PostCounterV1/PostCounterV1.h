@@ -33,7 +33,6 @@ public:
 	float num_goals = 0.f;
 	float accuracy = 0.f;
 	bool player_touched_last = false;
-	float last_hit_time = 0.f;
 
 	const float LEFT_POST = -840.f;
 	const float RIGHT_POST = 840.f;
