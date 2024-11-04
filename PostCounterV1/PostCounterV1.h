@@ -19,28 +19,33 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 	void onUnload() override; // Uncomment and implement if you need a unload method
 	void on_post_hit();
 	void on_hit_goal();
-	void on_goal();
+	void on_goal_scored();
 	bool check_if_player_touched_last(CarWrapper caller);
 
 	void clear_shot_stats();
 	void update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement);
 
 public:
-	//void RenderSettings() override; // Uncomment if you wanna render your own tab in the settings menu
-	//void RenderWindow() override; // Uncomment if you want to render your own plugin window
+	//void RenderSettings() ;  // Uncomment if you wanna render your own tab in the settings menu
+	//void RenderWindow() ; // Uncomment if you want to render your own plugin window
+	void Render(CanvasWrapper canvas);
 
 	float num_shots = 0.f;
 	float num_posts = 0.f;
 	float num_goals = 0.f;
 	float accuracy = 0.f;
 	bool player_touched_last = false;
+	int player_team;
+	bool displayText = true;
 
 	const float LEFT_POST = -840.f;
 	const float RIGHT_POST = 840.f;
 	const float CROSSBAR_HEIGHT = 2044.f;
-	const float GROUND_LEVEL = 93.f;
-	const float GOAL_LINE = 5120.f;
-	const float BACK_OF_FIELD = 4992.f;
+	const float GROUND_LEVEL = 95.f;
+	const float GOAL_LINE_BLUE = 5120.f;
+	const float GOAL_LINE_ORANGE = -5120.f;
+	const float BACK_OF_FIELD_BLUE = 4992.f;
+	const float BACK_OF_FIELD_ORANGE = -4992.f;
 
 	const float POST_SIZE = 1000.f;
 };

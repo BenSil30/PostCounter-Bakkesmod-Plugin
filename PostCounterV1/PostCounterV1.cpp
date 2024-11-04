@@ -8,7 +8,7 @@ std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
 void PostCounterV1::onLoad()
 {
 	_globalCvarManager = cvarManager;
-	cvarManager->registerNotifier("ResetPostCounter", [this](std::vector<std::string> args) {
+	cvarManager->registerNotifier("ResetPostCounterStats", [this](std::vector<std::string> args) {
 		clear_shot_stats();
 		}, "Clears shot stats", PERMISSION_ALL);
 
@@ -16,53 +16,26 @@ void PostCounterV1::onLoad()
 
 	//subscribe methods to the correct events
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitGoal", std::bind(&PostCounterV1::on_goal, this));
+	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
 		player_touched_last = check_if_player_touched_last(caller);
+		// if player touched last, store player team number
+		if (player_touched_last) {
+			PriWrapper playerPri = caller.GetPRI();
+			player_team = playerPri.GetTeamNum(); // 0 for blue, 1 for orange
+		}
+		});
+	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
+		Render(canvas);
 		});
 	LOG("PostCounter loaded");
-
-	/*
-	 !! Enable debug logging by setting DEBUG_LOG = true in logging.h !!
-	DEBUGLOG("PostCounterV1 debug mode enabled");
-
-	 LOG and DEBUGLOG use fmt format strings https://fmt.dev/latest/index.html
-
-	cvarManager->registerNotifier("my_aweseome_notifier", [&](std::vector<std::string> args) {
-		LOG("Hello notifier!");
-	}, "", 0);
-
-	auto cvar = cvarManager->registerCvar("template_cvar", "hello-cvar", "just a example of a cvar");
-	auto cvar2 = cvarManager->registerCvar("template_cvar2", "0", "just a example of a cvar with more settings", true, true, -10, true, 10 );
-
-	cvar.addOnValueChanged([this](std::string cvarName, CVarWrapper newCvar) {
-		LOG("the cvar with name: {} changed", cvarName);
-		LOG("the new value is: {}", newCvar.getStringValue());
-	});
-
-	cvar2.addOnValueChanged(std::bind(&PostCounterV1::YourPluginMethod, this, _1, _2));
-
-	 enabled decleared in the header
-	enabled = std::make_shared<bool>(false);
-	cvarManager->registerCvar("TEMPLATE_Enabled", "0", "Enable the TEMPLATE plugin", true, true, 0, true, 1).bindTo(enabled);
-
-	cvarManager->registerNotifier("NOTIFIER", [this](std::vector<std::string> params){FUNCTION();}, "DESCRIPTION", PERMISSION_ALL);
-	cvarManager->registerCvar("CVAR", "DEFAULTVALUE", "DESCRIPTION", true, true, MINVAL, true, MAXVAL);//.bindTo(CVARVARIABLE);
-	gameWrapper->HookEventWithCallerPost<ActorWrapper>("FUNCTIONNAME", std::bind(&PostCounterV1::FUNCTION, this, _1, _2, _3));
-	gameWrapper->RegisterDrawable(bind(&TEMPLATE::Render, this, std::placeholders::_1));
-
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", [this](std::string eventName) {
-		LOG("Your hook got called and the ball went POOF");
-	});
-	 You could also use std::bind here
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", std::bind(&PostCounterV1::YourPluginMethod, this);
-	*/
 }
 
 void PostCounterV1::onUnload() {
 	clear_shot_stats();
 }
 
+// hooked into EventHitWorld method, will call 'on_hit_goal' if in freeplay and
 void PostCounterV1::on_post_hit() {
 	if (!player_touched_last) return;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
@@ -71,27 +44,44 @@ void PostCounterV1::on_post_hit() {
 	if (!ball) return;
 
 	const Vector ball_hit_loc = ball.GetLocation();
-	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < CROSSBAR_HEIGHT) // if ball is below crossbar and above ground
-		&& (ball_hit_loc.X > (LEFT_POST - POST_SIZE) && ball_hit_loc.X < (RIGHT_POST + POST_SIZE))) { // if ball is within a certain width of the goal
-		if (ball_hit_loc.Y < -GOAL_LINE || ball_hit_loc.Y > GOAL_LINE) {// if ball is in goal (for freeplay when goals are turned off)
-			on_hit_goal();
-			return;
+	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < CROSSBAR_HEIGHT)
+		&& (ball_hit_loc.X > (LEFT_POST - POST_SIZE) && ball_hit_loc.X < (RIGHT_POST + POST_SIZE))) {
+		// if in freeplay, check if ball is in goal (and if goal reset is disabled) to track goals
+		if (gameWrapper->IsInFreeplay()) {
+			if ((ball_hit_loc.Y <= GOAL_LINE_ORANGE && player_team == 1) || (ball_hit_loc.Y >= GOAL_LINE_BLUE && player_team == 0)) {
+				on_hit_goal();
+				return;
+			}
 		}
 
-		if (ball_hit_loc.Y < -BACK_OF_FIELD || ball_hit_loc.Y > BACK_OF_FIELD) { // if the ball is near the goal line
+		if ((ball_hit_loc.Y < BACK_OF_FIELD_ORANGE && player_team == 1) || (ball_hit_loc.Y > BACK_OF_FIELD_BLUE && player_team == 0)) {
 			update_shot_stats(1.f, 0.f, 1.f);
 			LOG("Post hit, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 		}
 	}
 }
 
+/**
+* called by 'on_post_hit' when in freeplay and goal scoring is disabled
+*/
 void PostCounterV1::on_hit_goal() {
 	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
-void PostCounterV1::on_goal() {
+// hooked into method when goal is scored
+void PostCounterV1::on_goal_scored() {
+	// check if scoring team was player's team
+	ServerWrapper server = gameWrapper->GetCurrentGameState();
+	if (!server) return;
+	TeamWrapper scoring_team = server.GetWinningTeam();
+	if (!scoring_team) return;
+	int team = scoring_team.GetTeamNum();
+	if (team != player_team) return;
+
+	if (!player_touched_last) return;
+	LOG("nope, here");
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
@@ -121,4 +111,17 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 
 	accuracy = (num_goals / num_shots) * 100.f;
 	player_touched_last = false;
+}
+
+void PostCounterV1::Render(CanvasWrapper canvas) {
+	if (displayText && (gameWrapper->IsInFreeplay() || gameWrapper->IsInOnlineGame() || gameWrapper->IsInCustomTraining())) {
+		canvas.SetColor(255, 255, 255, 255); // White color
+		Vector2 position(100, 100);
+		std::string text = "Shots: " + std::to_string(num_shots) +
+			" Goals: " + std::to_string(num_goals) +
+			" Posts: " + std::to_string(num_posts);
+		int fontSize = 2;
+		canvas.DrawString(text, fontSize, fontSize, true, true);
+		//canvas.SetPosition(position);
+	}
 }
