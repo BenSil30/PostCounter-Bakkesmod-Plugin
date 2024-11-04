@@ -14,6 +14,8 @@ void PostCounterV1::onLoad()
 
 	clear_shot_stats();
 
+	// todo: unsubscribe to events
+	// todo: posts per game metric
 	//subscribe methods to the correct events
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
@@ -28,6 +30,16 @@ void PostCounterV1::onLoad()
 	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
 		Render(canvas);
 		});
+
+	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.BeginState",
+		[this](std::string eventName) {
+			is_in_replay = true;
+		});
+	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.EndState",
+		[this](std::string eventName) {
+			is_in_replay = false;
+		});
+
 	LOG("PostCounter loaded");
 }
 
@@ -37,6 +49,7 @@ void PostCounterV1::onUnload() {
 
 // hooked into EventHitWorld method, will call 'on_hit_goal' if in freeplay and
 void PostCounterV1::on_post_hit() {
+	if (is_in_replay) return;
 	if (!player_touched_last) return;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
@@ -65,6 +78,7 @@ void PostCounterV1::on_post_hit() {
 * called by 'on_post_hit' when in freeplay and goal scoring is disabled
 */
 void PostCounterV1::on_hit_goal() {
+	if (is_in_replay) return;
 	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
@@ -72,6 +86,7 @@ void PostCounterV1::on_hit_goal() {
 
 // hooked into method when goal is scored
 void PostCounterV1::on_goal_scored() {
+	if (is_in_replay) return;
 	// check if scoring team was player's team
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
@@ -87,6 +102,7 @@ void PostCounterV1::on_goal_scored() {
 }
 
 bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
+	if (is_in_replay) return false;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return false;
 	BallWrapper ball = server.GetBall();
@@ -97,6 +113,8 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 }
 
 void PostCounterV1::clear_shot_stats() {
+	if (is_in_replay) return;
+
 	num_shots = 0.f;
 	num_posts = 0.f;
 	num_goals = 0.f;
@@ -105,6 +123,7 @@ void PostCounterV1::clear_shot_stats() {
 }
 
 void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement) {
+	if (is_in_replay) return;
 	num_shots += shotIncrement;
 	num_goals += goalIncrement;
 	num_posts += postIncrement;

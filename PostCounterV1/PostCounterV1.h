@@ -48,4 +48,5 @@ public:
 	const float BACK_OF_FIELD_ORANGE = -4992.f;
 
 	const float POST_SIZE = 1000.f;
+	bool is_in_replay = false;
 };
