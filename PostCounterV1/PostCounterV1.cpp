@@ -131,5 +131,4 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 	num_posts += postIncrement;
 
 	accuracy = (num_goals / num_shots) * 100.f;
-	miss_percentage = (num_posts / num_shots) * 100.f;
 }
