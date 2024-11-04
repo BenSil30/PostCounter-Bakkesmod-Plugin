@@ -8,8 +8,7 @@
 #include "bakkesmod/wrappers/cvarmanagerwrapper.h"
 
 extern std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
-constexpr bool DEBUG_LOG = false;
-
+constexpr bool DEBUG_LOG = true;
 
 struct FormatString
 {
@@ -50,7 +49,6 @@ struct FormatWstring
 	}
 };
 
-
 template <typename... Args>
 void LOG(std::string_view format_str, Args&&... args)
 {
@@ -62,7 +60,6 @@ void LOG(std::wstring_view format_str, Args&&... args)
 {
 	_globalCvarManager->log(std::vformat(format_str, std::make_wformat_args(args...)));
 }
-
 
 template <typename... Args>
 void DEBUGLOG(const FormatString& format_str, Args&&... args)
