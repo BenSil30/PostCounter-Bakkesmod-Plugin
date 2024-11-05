@@ -59,7 +59,7 @@ void PostCounterV1::onLoad()
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed",
 		[this](std::string eventName) {
-			should_track_shots = true;
+			should_track_shots = false;
 		});
 #pragma endregion
 
@@ -181,15 +181,21 @@ void PostCounterV1::RenderSettings()
 
 	ImGui::Text("Number of Shots: %.1f", num_shots);
 	ImGui::Text("Shots in Matches: %.1f", num_shots_in_matches);
+	ImGui::TextUnformatted("----------------");
 	ImGui::Text("Number of Posts: %.1f", num_posts);
 	ImGui::Text("Posts in Matches: %.1f", num_posts_in_matches);
+	ImGui::TextUnformatted("----------------");
 	ImGui::Text("Number of Goals: %.1f", num_goals);
 	ImGui::Text("Goals in Matches: %.1f", num_goals_in_matches);
+	ImGui::TextUnformatted("----------------");
 	ImGui::Text("Accuracy: %.1f%%", accuracy);
 	ImGui::Text("Posts per Match: %.1f", posts_per_match);
 	ImGui::Text("Number of Matches: %.1f", num_matches);
+	ImGui::TextUnformatted("----------------");
 	ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
 	ImGui::Text("Player Team: %d", player_team);
+	ImGui::Text("Is Tracking Shots: %s", should_track_shots ? "Yes" : "No");
+	ImGui::TextUnformatted("----------------");
 
 	CVarWrapper ui_cvar = _globalCvarManager->getCvar("display_UI");
 	if (!ui_cvar) return;
@@ -199,6 +205,14 @@ void PostCounterV1::RenderSettings()
 	}
 	if (ImGui::IsItemHovered()) {
 		ImGui::SetTooltip("Disables/Enables the onscreen UI");
+	}
+	if (ImGui::Button("Reset All Stats")) {
+		gameWrapper->Execute([this](GameWrapper* gw) {
+			cvarManager->executeCommand("ResetPostCounterStats");
+			});
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Resets ALL stats. This cannot be undone");
 	}
 }
 

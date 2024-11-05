@@ -26,7 +26,6 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 	void update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement);
 public:
 	void RenderSettings() override;  // Uncomment if you wanna render your own tab in the settings menu
-	void toggle_onscreen_stats(bool enabled);
 	//void RenderWindow() override ; // Uncomment if you want to render your own plugin window
 	void Render(CanvasWrapper canvas);
 
