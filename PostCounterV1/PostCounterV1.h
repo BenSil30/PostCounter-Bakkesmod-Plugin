@@ -31,9 +31,14 @@ public:
 	void Render(CanvasWrapper canvas);
 
 	float num_shots = 0.f;
+	float num_shots_in_matches = 0.f;
 	float num_posts = 0.f;
+	float num_posts_in_matches = 0.f;
 	float num_goals = 0.f;
+	float num_goals_in_matches = 0.f;
 	float accuracy = 0.f;
+	float posts_per_match = 0.f;
+	float num_matches = 0.f;
 	bool player_touched_last = false;
 	int player_team;
 	bool displayText = true;
@@ -44,9 +49,9 @@ public:
 	const float GROUND_LEVEL = 95.f;
 	const float GOAL_LINE_BLUE = 5120.f;
 	const float GOAL_LINE_ORANGE = -5120.f;
-	const float BACK_OF_FIELD_BLUE = 4992.f;
-	const float BACK_OF_FIELD_ORANGE = -4992.f;
+	const float BACK_OF_FIELD_BLUE = 4990.f;
+	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
 	const float POST_SIZE = 1000.f;
-	bool is_in_replay = false;
+	bool should_track_shots;
 };

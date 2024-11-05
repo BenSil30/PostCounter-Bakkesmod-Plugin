@@ -14,12 +14,10 @@ void PostCounterV1::onLoad()
 
 	clear_shot_stats();
 
-	// todo: unsubscribe to events
-	// todo: posts per game metric
-	//subscribe methods to the correct events
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
+		if (!should_track_shots) return;
 		player_touched_last = check_if_player_touched_last(caller);
 		// if player touched last, store player team number
 		if (player_touched_last) {
@@ -31,13 +29,29 @@ void PostCounterV1::onLoad()
 		Render(canvas);
 		});
 
+	// manage for replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.BeginState",
 		[this](std::string eventName) {
-			is_in_replay = true;
+			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.EndState",
 		[this](std::string eventName) {
-			is_in_replay = false;
+			should_track_shots = true;
+		});
+
+	// log matches
+	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.Active.StartRound",
+		[this](std::string eventName) {
+			should_track_shots = true;
+			num_matches++;
+		});
+	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
+		[this](std::string eventName) {
+			should_track_shots = false;
+		});
+	gameWrapper->HookEvent("Function TAGame.Mutator_Freeplay_TA.Init",
+		[this](std::string eventName) {
+			should_track_shots = true;
 		});
 
 	LOG("PostCounter loaded");
@@ -49,7 +63,7 @@ void PostCounterV1::onUnload() {
 
 // hooked into EventHitWorld method, will call 'on_hit_goal' if in freeplay and
 void PostCounterV1::on_post_hit() {
-	if (is_in_replay) return;
+	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
@@ -78,7 +92,7 @@ void PostCounterV1::on_post_hit() {
 * called by 'on_post_hit' when in freeplay and goal scoring is disabled
 */
 void PostCounterV1::on_hit_goal() {
-	if (is_in_replay) return;
+	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
@@ -86,23 +100,23 @@ void PostCounterV1::on_hit_goal() {
 
 // hooked into method when goal is scored
 void PostCounterV1::on_goal_scored() {
-	if (is_in_replay) return;
+	if (!should_track_shots) return;
 	// check if scoring team was player's team
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
+	//todo: fix call here - ignores first goal because there is no winning team
 	TeamWrapper scoring_team = server.GetWinningTeam();
 	if (!scoring_team) return;
 	int team = scoring_team.GetTeamNum();
 	if (team != player_team) return;
 
 	if (!player_touched_last) return;
-	LOG("nope, here");
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
 bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
-	if (is_in_replay) return false;
+	if (!should_track_shots) return false;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return false;
 	BallWrapper ball = server.GetBall();
@@ -113,9 +127,9 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 }
 
 void PostCounterV1::clear_shot_stats() {
-	if (is_in_replay) return;
-
 	num_shots = 0.f;
+	num_shots_in_matches = 0.f;
+	num_matches = 0.f;
 	num_posts = 0.f;
 	num_goals = 0.f;
 	accuracy = 0.f;
@@ -123,24 +137,28 @@ void PostCounterV1::clear_shot_stats() {
 }
 
 void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement) {
-	if (is_in_replay) return;
+	if (!should_track_shots) return;
 	num_shots += shotIncrement;
+	if (gameWrapper->IsInOnlineGame()) num_shots_in_matches += shotIncrement;
 	num_goals += goalIncrement;
+	if (gameWrapper->IsInOnlineGame()) num_goals_in_matches += goalIncrement;
 	num_posts += postIncrement;
+	if (gameWrapper->IsInOnlineGame()) num_posts_in_matches += postIncrement;
 
 	accuracy = (num_goals / num_shots) * 100.f;
+	posts_per_match = (num_posts_in_matches / num_matches) * 100.f;
 	player_touched_last = false;
 }
 
 void PostCounterV1::Render(CanvasWrapper canvas) {
 	if (displayText && (gameWrapper->IsInFreeplay() || gameWrapper->IsInOnlineGame() || gameWrapper->IsInCustomTraining())) {
 		canvas.SetColor(255, 255, 255, 255); // White color
-		Vector2 position(100, 100);
-		std::string text = "Shots: " + std::to_string(num_shots) +
-			" Goals: " + std::to_string(num_goals) +
-			" Posts: " + std::to_string(num_posts);
+		std::string text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
+			" Goals: " + std::to_string(static_cast<int>(num_goals)) +
+			" Posts: " + std::to_string(static_cast<int>(num_posts)) +
+			" P/G: " + std::to_string(posts_per_match);
 		int fontSize = 2;
 		canvas.DrawString(text, fontSize, fontSize, true, true);
-		//canvas.SetPosition(position);
+		canvas.SetPosition(gameWrapper->GetScreenSize());
 	}
 }
