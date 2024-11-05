@@ -9,7 +9,7 @@
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
 class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
-	//,public SettingsWindowBase // Uncomment if you wanna render your own tab in the settings menu
+	, public SettingsWindowBase // Uncomment if you wanna render your own tab in the settings menu
 	//,public PluginWindowBase // Uncomment if you want to render your own plugin window
 {
 	//std::shared_ptr<bool> enabled;
@@ -24,10 +24,10 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 
 	void clear_shot_stats();
 	void update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement);
-
 public:
-	//void RenderSettings() ;  // Uncomment if you wanna render your own tab in the settings menu
-	//void RenderWindow() ; // Uncomment if you want to render your own plugin window
+	void RenderSettings() override;  // Uncomment if you wanna render your own tab in the settings menu
+	void toggle_onscreen_stats(bool enabled);
+	//void RenderWindow() override ; // Uncomment if you want to render your own plugin window
 	void Render(CanvasWrapper canvas);
 
 	float num_shots = 0.f;
@@ -41,7 +41,7 @@ public:
 	float num_matches = 0.f;
 	bool player_touched_last = false;
 	int player_team;
-	bool displayText = true;
+	bool display_text = true;
 
 	const float LEFT_POST = -840.f;
 	const float RIGHT_POST = 840.f;

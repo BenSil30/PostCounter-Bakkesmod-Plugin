@@ -14,6 +14,7 @@ void PostCounterV1::onLoad()
 
 	clear_shot_stats();
 
+#pragma region Shot Event Hooks
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
@@ -25,10 +26,13 @@ void PostCounterV1::onLoad()
 			player_team = playerPri.GetTeamNum(); // 0 for blue, 1 for orange
 		}
 		});
+#pragma endregion
+
 	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
 		Render(canvas);
 		});
 
+#pragma region GameState Event Hooks
 	// manage for replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.BeginState",
 		[this](std::string eventName) {
@@ -57,6 +61,10 @@ void PostCounterV1::onLoad()
 		[this](std::string eventName) {
 			should_track_shots = true;
 		});
+#pragma endregion
+
+	cvarManager->registerCvar("display_UI", "1", "Toggle on/off the UI")
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
 
 	LOG("PostCounter loaded");
 }
@@ -65,6 +73,7 @@ void PostCounterV1::onUnload() {
 	clear_shot_stats();
 }
 
+#pragma	region Shot Tracking
 // hooked into EventHitWorld method, will call 'on_hit_goal' if goal reset is disabled
 void PostCounterV1::on_post_hit() {
 	if (!should_track_shots) return;
@@ -119,6 +128,9 @@ void PostCounterV1::on_goal_scored() {
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
+#pragma	endregion
+
+#pragma region Shot Tracking Helpers
 /**
 * Called on every ball touch. ret true if player last touched ball, false if not
 */
@@ -136,10 +148,13 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 void PostCounterV1::clear_shot_stats() {
 	num_shots = 0.f;
 	num_shots_in_matches = 0.f;
-	num_matches = 0.f;
 	num_posts = 0.f;
+	num_posts_in_matches = 0.f;
 	num_goals = 0.f;
+	num_goals_in_matches = 0.f;
 	accuracy = 0.f;
+	posts_per_match = 0.f;
+	num_matches = 0.f;
 	player_touched_last = false;
 }
 
@@ -153,13 +168,43 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 	if (gameWrapper->IsInOnlineGame()) num_posts_in_matches += postIncrement;
 
 	accuracy = (num_goals / num_shots) * 100.f;
-	posts_per_match = (num_posts_in_matches / num_matches) * 100.f;
+	if (num_matches > 0) posts_per_match = (num_posts_in_matches / num_matches) * 100.f;
 	player_touched_last = false;
 }
 
+#pragma endregion
+
+#pragma region GUI
+void PostCounterV1::RenderSettings()
+{
+	ImGui::TextUnformatted("Post Counter Plugin v1");
+
+	ImGui::Text("Number of Shots: %.1f", num_shots);
+	ImGui::Text("Shots in Matches: %.1f", num_shots_in_matches);
+	ImGui::Text("Number of Posts: %.1f", num_posts);
+	ImGui::Text("Posts in Matches: %.1f", num_posts_in_matches);
+	ImGui::Text("Number of Goals: %.1f", num_goals);
+	ImGui::Text("Goals in Matches: %.1f", num_goals_in_matches);
+	ImGui::Text("Accuracy: %.1f%%", accuracy);
+	ImGui::Text("Posts per Match: %.1f", posts_per_match);
+	ImGui::Text("Number of Matches: %.1f", num_matches);
+	ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
+	ImGui::Text("Player Team: %d", player_team);
+
+	CVarWrapper ui_cvar = _globalCvarManager->getCvar("display_UI");
+	if (!ui_cvar) return;
+	display_text = ui_cvar.getBoolValue();
+	if (ImGui::Checkbox("Enable UI", &display_text)) {
+		ui_cvar.setValue(display_text);
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Disables/Enables the onscreen UI");
+	}
+}
+
 void PostCounterV1::Render(CanvasWrapper canvas) {
-	if (displayText && should_track_shots) {
-		canvas.SetColor(255, 255, 255, 255); // White color
+	if (display_text && should_track_shots) {
+		canvas.SetColor(255, 255, 255, 255);
 		std::string text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
 			" Goals: " + std::to_string(static_cast<int>(num_goals)) +
 			" Posts: " + std::to_string(static_cast<int>(num_posts)) +
@@ -169,3 +214,4 @@ void PostCounterV1::Render(CanvasWrapper canvas) {
 		canvas.SetPosition(gameWrapper->GetScreenSize());
 	}
 }
+#pragma endregion
