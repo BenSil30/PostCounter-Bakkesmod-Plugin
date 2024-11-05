@@ -39,17 +39,21 @@ void PostCounterV1::onLoad()
 			should_track_shots = true;
 		});
 
-	// log matches
-	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.Active.StartRound",
+	// only track during the proper states/log matches
+	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.WaitingForPlayers.BeginState",
 		[this](std::string eventName) {
 			should_track_shots = true;
-			num_matches++;
+			if (gameWrapper->IsInOnlineGame()) num_matches++;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
 		[this](std::string eventName) {
 			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function TAGame.Mutator_Freeplay_TA.Init",
+		[this](std::string eventName) {
+			should_track_shots = true;
+		});
+	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed",
 		[this](std::string eventName) {
 			should_track_shots = true;
 		});
@@ -61,7 +65,7 @@ void PostCounterV1::onUnload() {
 	clear_shot_stats();
 }
 
-// hooked into EventHitWorld method, will call 'on_hit_goal' if in freeplay and
+// hooked into EventHitWorld method, will call 'on_hit_goal' if goal reset is disabled
 void PostCounterV1::on_post_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
@@ -101,6 +105,7 @@ void PostCounterV1::on_hit_goal() {
 // hooked into method when goal is scored
 void PostCounterV1::on_goal_scored() {
 	if (!should_track_shots) return;
+	if (!player_touched_last) return;
 	// check if scoring team was player's team
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
@@ -110,11 +115,13 @@ void PostCounterV1::on_goal_scored() {
 	int team = scoring_team.GetTeamNum();
 	if (team != player_team) return;
 
-	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
 	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
+/**
+* Called on every ball touch. ret true if player last touched ball, false if not
+*/
 bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 	if (!should_track_shots) return false;
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
@@ -151,7 +158,7 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 }
 
 void PostCounterV1::Render(CanvasWrapper canvas) {
-	if (displayText && (gameWrapper->IsInFreeplay() || gameWrapper->IsInOnlineGame() || gameWrapper->IsInCustomTraining())) {
+	if (displayText && should_track_shots) {
 		canvas.SetColor(255, 255, 255, 255); // White color
 		std::string text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
 			" Goals: " + std::to_string(static_cast<int>(num_goals)) +

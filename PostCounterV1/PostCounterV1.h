@@ -53,5 +53,5 @@ public:
 	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
 	const float POST_SIZE = 1000.f;
-	bool should_track_shots;
+	bool should_track_shots = false;
 };
