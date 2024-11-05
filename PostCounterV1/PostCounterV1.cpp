@@ -221,8 +221,7 @@ void PostCounterV1::Render(CanvasWrapper canvas) {
 		canvas.SetColor(255, 255, 255, 255);
 		std::string text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
 			" Goals: " + std::to_string(static_cast<int>(num_goals)) +
-			" Posts: " + std::to_string(static_cast<int>(num_posts)) +
-			" P/G: " + std::to_string(posts_per_match);
+			" Posts: " + std::to_string(static_cast<int>(num_posts));
 		int fontSize = 2;
 		canvas.DrawString(text, fontSize, fontSize, true, true);
 		canvas.SetPosition(gameWrapper->GetScreenSize());

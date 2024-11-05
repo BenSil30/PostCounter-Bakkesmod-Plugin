@@ -14,7 +14,6 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 {
 	//std::shared_ptr<bool> enabled;
 
-	//Boilerplate
 	void onLoad() override;
 	void onUnload() override; // Uncomment and implement if you need a unload method
 	void on_post_hit();
