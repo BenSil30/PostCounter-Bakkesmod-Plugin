@@ -37,19 +37,24 @@ public:
 	float accuracy = 0.f;
 	float posts_per_match = 0.f;
 	float num_matches = 0.f;
+
 	bool player_touched_last = false;
 	int player_team;
 	bool display_text = true;
 
-	const float LEFT_POST = -840.f;
-	const float RIGHT_POST = 840.f;
-	const float CROSSBAR_HEIGHT = 2044.f;
+	bool should_track_shots = false;
+
+	const float LEFT_POST = -1250.f;
+	const float RIGHT_POST = 1250.f;
+
+	const float CROSSBAR_HEIGHT = 750.f;
 	const float GROUND_LEVEL = 95.f;
+
 	const float GOAL_LINE_BLUE = 5120.f;
 	const float GOAL_LINE_ORANGE = -5120.f;
+
 	const float BACK_OF_FIELD_BLUE = 4990.f;
 	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
-	const float POST_SIZE = 1000.f;
-	bool should_track_shots = false;
+	const float POST_SIZE = 0.f;
 };

@@ -19,6 +19,8 @@ void PostCounterV1::onLoad()
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
 		if (!should_track_shots) return;
+		if (!caller) return;
+
 		player_touched_last = check_if_player_touched_last(caller);
 		// if player touched last, store player team number
 		if (player_touched_last) {
@@ -43,7 +45,7 @@ void PostCounterV1::onLoad()
 			should_track_shots = true;
 		});
 
-	// only track during the proper states/log matches
+	// only track during the proper states/log matches. Subscribing to these events also prevents crashes at the end of matches/during replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.WaitingForPlayers.BeginState",
 		[this](std::string eventName) {
 			should_track_shots = true;
@@ -60,6 +62,17 @@ void PostCounterV1::onLoad()
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed",
 		[this](std::string eventName) {
 			should_track_shots = false;
+		});
+	// manage for demo crashing
+	gameWrapper->HookEventWithCaller<CarWrapper>(
+		"Function TAGame.Car_TA.OnDemolishedGoalExplosion",
+		[this](CarWrapper caller, void* params, std::string eventName)
+		{
+		});
+	gameWrapper->HookEventWithCaller<CarWrapper>(
+		"Function TAGame.GameEvent_TA.AddCar",
+		[this](CarWrapper caller, void* params, std::string eventName)
+		{
 		});
 #pragma endregion
 
@@ -116,16 +129,16 @@ void PostCounterV1::on_goal_scored() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 	// check if scoring team was player's team
-	ServerWrapper server = gameWrapper->GetCurrentGameState();
-	if (!server) return;
-	//todo: fix call here - ignores first goal because there is no winning team
-	TeamWrapper scoring_team = server.GetWinningTeam();
-	if (!scoring_team) return;
-	int team = scoring_team.GetTeamNum();
-	if (team != player_team) return;
+	//ServerWrapper server = gameWrapper->GetCurrentGameState();
+	//if (!server) return;
+
+	//TeamWrapper scoring_team = server.GetWinningTeam();
+	//if (!scoring_team) return;
+	//int team = scoring_team.GetTeamNum();
+	//if (team != player_team) return;
 
 	update_shot_stats(1.f, 1.f, 0.f);
-	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
+	//LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
 #pragma	endregion
@@ -141,7 +154,7 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 	BallWrapper ball = server.GetBall();
 	if (!ball) return false;
 	CarWrapper playerCar = gameWrapper->GetLocalCar();
-
+	if (!playerCar) return false;
 	return callerCar.GetOwnerName() == playerCar.GetOwnerName();
 }
 
