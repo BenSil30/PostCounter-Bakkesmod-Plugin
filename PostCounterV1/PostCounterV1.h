@@ -43,6 +43,7 @@ public:
 	bool display_text = true;
 
 	bool should_track_shots = false;
+	bool is_demolished = false;
 
 	const float LEFT_POST = -1250.f;
 	const float RIGHT_POST = 1250.f;

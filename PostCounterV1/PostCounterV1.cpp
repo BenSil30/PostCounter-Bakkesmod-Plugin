@@ -38,41 +38,67 @@ void PostCounterV1::onLoad()
 	// manage for replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.BeginState",
 		[this](std::string eventName) {
+			LOG("here");
 			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.EndState",
 		[this](std::string eventName) {
+			LOG("no here");
 			should_track_shots = true;
 		});
 
 	// only track during the proper states/log matches. Subscribing to these events also prevents crashes at the end of matches/during replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.WaitingForPlayers.BeginState",
 		[this](std::string eventName) {
+			//LOG("nope here");
 			should_track_shots = true;
 			if (gameWrapper->IsInOnlineGame()) num_matches++;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
 		[this](std::string eventName) {
+			//LOG("nah here");
 			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function TAGame.Mutator_Freeplay_TA.Init",
 		[this](std::string eventName) {
+			//LOG("def here");
 			should_track_shots = true;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed",
 		[this](std::string eventName) {
+			//LOG("just here");
 			should_track_shots = false;
 		});
+
 	// manage for demo crashing
 	gameWrapper->HookEventWithCaller<CarWrapper>(
 		"Function TAGame.Car_TA.OnDemolishedGoalExplosion",
 		[this](CarWrapper caller, void* params, std::string eventName)
 		{
+			CarWrapper player_car = gameWrapper->GetLocalCar();
+			// player car will be null if demo'd, also catches for double run on demo-trade
+			if (!player_car && !is_demolished) {
+				//LOG("player demolished, tracking paused", caller.GetOwnerName());
+				is_demolished = true;
+				should_track_shots = false;
+			}
 		});
 	gameWrapper->HookEventWithCaller<CarWrapper>(
 		"Function TAGame.GameEvent_TA.AddCar",
 		[this](CarWrapper caller, void* params, std::string eventName)
 		{
+			// ignore start of game and end of game spawns
+			ServerWrapper server = gameWrapper->GetCurrentGameState();
+			if (!server) return;
+			int time_left = server.GetSecondsRemaining();
+			// todo: no magic number here for start of game and handle for OT
+			if (time_left >= 300 || time_left <= 0) return;
+
+			if (is_demolished) {
+				is_demolished = false;
+				should_track_shots = true;
+				LOG("player spawned tracking started again");
+			}
 		});
 #pragma endregion
 
@@ -91,10 +117,13 @@ void PostCounterV1::onUnload() {
 void PostCounterV1::on_post_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
+
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
 	BallWrapper ball = server.GetBall();
 	if (!ball) return;
+	CarWrapper car = gameWrapper->GetLocalCar();
+	if (!car) return;
 
 	const Vector ball_hit_loc = ball.GetLocation();
 	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < CROSSBAR_HEIGHT)
@@ -102,6 +131,7 @@ void PostCounterV1::on_post_hit() {
 		// if in freeplay, check if ball is in goal (and if goal reset is disabled) to track goals
 		if (gameWrapper->IsInFreeplay()) {
 			if ((ball_hit_loc.Y <= GOAL_LINE_ORANGE && player_team == 1) || (ball_hit_loc.Y >= GOAL_LINE_BLUE && player_team == 0)) {
+				//LOG("{},{},{}", ball_hit_loc.X, ball_hit_loc.Y, ball_hit_loc.Z);
 				on_hit_goal();
 				return;
 			}
@@ -109,7 +139,7 @@ void PostCounterV1::on_post_hit() {
 
 		if ((ball_hit_loc.Y < BACK_OF_FIELD_ORANGE && player_team == 1) || (ball_hit_loc.Y > BACK_OF_FIELD_BLUE && player_team == 0)) {
 			update_shot_stats(1.f, 0.f, 1.f);
-			LOG("Post hit, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
+			//LOG("Post hit, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 		}
 	}
 }
@@ -121,13 +151,14 @@ void PostCounterV1::on_hit_goal() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
-	LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
+	//LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
 // hooked into method when goal is scored
 void PostCounterV1::on_goal_scored() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
+
 	// check if scoring team was player's team
 	//ServerWrapper server = gameWrapper->GetCurrentGameState();
 	//if (!server) return;
@@ -153,6 +184,7 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 	if (!server) return false;
 	BallWrapper ball = server.GetBall();
 	if (!ball) return false;
+
 	CarWrapper playerCar = gameWrapper->GetLocalCar();
 	if (!playerCar) return false;
 	return callerCar.GetOwnerName() == playerCar.GetOwnerName();
