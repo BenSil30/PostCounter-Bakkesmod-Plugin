@@ -16,7 +16,11 @@ void PostCounterV1::onLoad()
 
 #pragma region Shot Event Hooks
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_hit, this));
+	gameWrapper->HookEventWithCaller<TeamWrapper>("Function TAGame.Team_TA.OnScoreUpdated", [this](TeamWrapper caller, void* params, std::string eventname) {
+		if (caller.GetTeamNum() != player_team) return; // if player own goaled/was scored on, return
+		on_goal_hit();
+		});
+	//gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_hit, this));
 
 	// on every ball touch, store if the player touched it most recently and which team the player is on
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
@@ -24,24 +28,10 @@ void PostCounterV1::onLoad()
 		if (!caller) return;
 
 		player_touched_last = check_if_player_touched_last(caller);
-		// if player touched last, store player team number
+		// if player touched last, store player team number - this catches for if the player switches teams
 		if (player_touched_last) {
 			PriWrapper playerPri = caller.GetPRI();
 			player_team = playerPri.GetTeamNum(); // 0 for blue, 1 for orange
-		}
-		});
-
-	// if player scores an own goal, don't count it towards the stats. the method for the goal will run every goal, but this will check if it was an own goal
-	gameWrapper->HookEventWithCaller<TeamWrapper>("Function TAGame.Team_TA.OnScoreUpdated", [this](TeamWrapper caller, void* params, std::string eventname) {
-		if (!check_if_player_touched_last) return;
-		// todo: this is being set to false when the goal method runs first, which then skips this. other than that, the functionality works.
-		// todo cont: 'check_if_player_touched_last' has to be set to false when the stats are updated to ignore the ball bouncing on the goal line counting as multiple shots
-		if (caller.GetTeamNum() != player_team) {
-			LOG("player own goaled");
-			update_shot_stats(-1.f, -1.f, 0.f);
-		}
-		else {
-			LOG("{}", caller.GetTeamNum());
 		}
 		});
 
@@ -81,7 +71,6 @@ void PostCounterV1::onLoad()
 			should_track_shots = false;
 		});
 
-	// todo: build and test this
 	// manage for demo crashing
 	gameWrapper->HookEventWithCaller<CarWrapper>(
 		"Function TAGame.Car_TA.OnDemolishedGoalExplosion",
@@ -118,7 +107,9 @@ void PostCounterV1::onUnload() {
 }
 
 #pragma	region Shot Tracking
-// hooked into EventHitWorld method, will call 'on_hit_goal' if goal reset is disabled
+/*
+* hooked into EventHitWorld method, will call 'on_hit_goal' if goal reset is disabled
+*/
 void PostCounterV1::on_post_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
@@ -142,6 +133,7 @@ void PostCounterV1::on_post_hit() {
 			}
 		}
 
+		// check if ball has hit the post and update stats
 		if ((ball_hit_loc.Y < BACK_OF_FIELD_ORANGE && player_team == 1) || (ball_hit_loc.Y > BACK_OF_FIELD_BLUE && player_team == 0)) {
 			update_shot_stats(1.f, 0.f, 1.f);
 			//LOG("Post hit, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
@@ -178,19 +170,29 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 	return callerCar.GetOwnerName() == playerCar.GetOwnerName();
 }
 
+/*
+* clears all shot stats AND resets last touch
+*/
 void PostCounterV1::clear_shot_stats() {
 	num_shots = 0.f;
 	num_shots_in_matches = 0.f;
+
 	num_posts = 0.f;
 	num_posts_in_matches = 0.f;
+
 	num_goals = 0.f;
 	num_goals_in_matches = 0.f;
+
 	accuracy = 0.f;
 	posts_per_match = 0.f;
 	num_matches = 0.f;
+
 	player_touched_last = false;
 }
 
+/*
+* Increments shot stats by the parameter specified amounts AND resets last touch on ball
+*/
 void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement) {
 	if (!should_track_shots) return;
 	num_shots += shotIncrement;
