@@ -17,7 +17,13 @@ void PostCounterV1::onLoad()
 #pragma region Shot Event Hooks
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
 	gameWrapper->HookEventWithCaller<TeamWrapper>("Function TAGame.Team_TA.OnScoreUpdated", [this](TeamWrapper caller, void* params, std::string eventname) {
-		if (caller.GetTeamNum() != player_team) return; // if player own goaled/was scored on, return
+		// if player own goaled/was scored on
+		if (caller.GetTeamNum() != player_team) {
+			if (!player_touched_last) return;
+			num_own_goals++;
+			player_touched_last = false;
+			return;
+		}
 		on_goal_hit();
 		});
 	//gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_hit, this));
@@ -56,7 +62,7 @@ void PostCounterV1::onLoad()
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.WaitingForPlayers.BeginState",
 		[this](std::string eventName) {
 			should_track_shots = true;
-			if (gameWrapper->IsInOnlineGame()) num_matches++;
+			num_matches++;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
 		[this](std::string eventName) {
@@ -100,10 +106,6 @@ void PostCounterV1::onLoad()
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
 
 	LOG("PostCounter loaded");
-}
-
-void PostCounterV1::onUnload() {
-	clear_shot_stats();
 }
 
 #pragma	region Shot Tracking
@@ -182,8 +184,10 @@ void PostCounterV1::clear_shot_stats() {
 
 	num_goals = 0.f;
 	num_goals_in_matches = 0.f;
+	num_own_goals = 0.f;
 
-	accuracy = 0.f;
+	overall_accuracy = 0.f;
+	in_game_accuracy = 0.f;
 	posts_per_match = 0.f;
 	num_matches = 0.f;
 
@@ -202,8 +206,11 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 	num_posts += postIncrement;
 	if (gameWrapper->IsInOnlineGame()) num_posts_in_matches += postIncrement;
 
-	accuracy = (num_goals / num_shots) * 100.f;
-	if (num_matches > 0) posts_per_match = (num_posts_in_matches / num_matches) * 100.f;
+	overall_accuracy = (num_goals / num_shots) * 100.f;
+	if (num_matches > 0) {
+		in_game_accuracy = (num_goals_in_matches / num_shots_in_matches) * 100.f;
+		posts_per_match = num_posts_in_matches / num_matches;
+	}
 	player_touched_last = false;
 }
 
@@ -214,23 +221,39 @@ void PostCounterV1::RenderSettings()
 {
 	ImGui::TextUnformatted("Post Counter Plugin v1");
 
-	ImGui::Text("Number of Shots: %.1f", num_shots);
-	ImGui::Text("Shots in Matches: %.1f", num_shots_in_matches);
+	ImGui::Text("Shots: %.f", num_shots);
+	ImGui::Text("Shots in games: %.f", num_shots_in_matches);
+	float shots_per_match = 0.f;
+	if (num_matches > 0) shots_per_match = num_shots / num_matches;
+	ImGui::Text("Shots per game: %.f", shots_per_match);
 	ImGui::TextUnformatted("----------------");
-	ImGui::Text("Number of Posts: %.1f", num_posts);
-	ImGui::Text("Posts in Matches: %.1f", num_posts_in_matches);
+
+	ImGui::Text("Posts: %.f", num_posts);
+	ImGui::Text("Posts in games: %.f", num_posts_in_matches);
+	ImGui::Text("Posts per game: %.f", posts_per_match);
 	ImGui::TextUnformatted("----------------");
-	ImGui::Text("Number of Goals: %.1f", num_goals);
-	ImGui::Text("Goals in Matches: %.1f", num_goals_in_matches);
+
+	ImGui::Text("Goals: %.f", num_goals);
+	ImGui::Text("Goals in games: %.f", num_goals_in_matches);
+	float goals_per_match = 0.f;
+	if (num_matches > 0) goals_per_match = num_goals_in_matches / num_matches;
+	ImGui::Text("Goals per game: %.f", goals_per_match);
 	ImGui::TextUnformatted("----------------");
-	ImGui::Text("Accuracy: %.1f%%", accuracy);
-	ImGui::Text("Posts per Match: %.1f", posts_per_match);
-	ImGui::Text("Number of Matches: %.1f", num_matches);
+
+	ImGui::Text("Own Goals: %.f", num_own_goals);
+	float own_goals_per_match = 0.f;
+	if (num_matches > 0) own_goals_per_match = num_own_goals / num_matches;
+	ImGui::Text("Own Goals per game: %.f", own_goals_per_match);
 	ImGui::TextUnformatted("----------------");
-	ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
-	ImGui::Text("Player Team: %d", player_team);
+
+	ImGui::Text("Overall Accuracy: %.f%%", overall_accuracy);
+	ImGui::Text("In Game Accuracy: %.f%%", in_game_accuracy);
+	ImGui::Text("Games Played: %.f", num_matches);
+	ImGui::TextUnformatted("----------------");
+	//ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
+	//ImGui::Text("Player Team: %d", player_team);
 	ImGui::Text("Is Tracking Shots: %s", should_track_shots ? "Yes" : "No");
-	ImGui::Text("Is Player Demolished: %s", is_demolished ? "Yes" : "No");
+	//ImGui::Text("Is Player Demolished: %s", is_demolished ? "Yes" : "No");
 	ImGui::TextUnformatted("----------------");
 
 	CVarWrapper ui_cvar = _globalCvarManager->getCvar("display_UI");
@@ -248,7 +271,7 @@ void PostCounterV1::RenderSettings()
 			});
 	}
 	if (ImGui::IsItemHovered()) {
-		ImGui::SetTooltip("Resets ALL stats. This cannot be undone");
+		ImGui::SetTooltip("Resets ALL stats for the session. This cannot be undone");
 	}
 }
 

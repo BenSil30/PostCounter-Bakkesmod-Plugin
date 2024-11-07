@@ -15,7 +15,6 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 	//std::shared_ptr<bool> enabled;
 
 	void onLoad() override;
-	void onUnload() override; // Uncomment and implement if you need a unload method
 	void on_post_hit();
 	void on_goal_hit();
 	void on_goal_scored();
@@ -28,23 +27,32 @@ public:
 	//void RenderWindow() override ; // Uncomment if you want to render your own plugin window
 	void Render(CanvasWrapper canvas);
 
+#pragma region Stats
 	float num_shots = 0.f;
 	float num_shots_in_matches = 0.f;
+
 	float num_posts = 0.f;
 	float num_posts_in_matches = 0.f;
+
 	float num_goals = 0.f;
 	float num_goals_in_matches = 0.f;
-	float accuracy = 0.f;
-	float posts_per_match = 0.f;
-	float num_matches = 0.f;
+	float num_own_goals;
 
+	float overall_accuracy = 0.f;
+	float in_game_accuracy = 0.f;
+	float posts_per_match = 0.f;
+
+	float num_matches = 0.f;
 	bool player_touched_last = false;
+#pragma endregion
+
 	int player_team;
 	bool display_text = true;
 
 	bool should_track_shots = false;
 	bool is_demolished = false;
 
+#pragma region Net Variables
 	const float LEFT_POST = -1250.f;
 	const float RIGHT_POST = 1250.f;
 
@@ -57,7 +65,8 @@ public:
 	const float BACK_OF_FIELD_BLUE = 4990.f;
 	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
-	const float POST_SIZE = 0.f;
+	const float POST_SIZE = 100.f;
+#pragma endregion
 };
 
 template <typename T, typename std::enable_if<std::is_base_of<ObjectWrapper, T>::value>::type*>
