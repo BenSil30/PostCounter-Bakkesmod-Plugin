@@ -12,6 +12,13 @@ void PostCounterV1::onLoad()
 		clear_shot_stats();
 		}, "Clears shot stats", PERMISSION_ALL);
 
+	cvarManager->registerCvar("display_UI", "1", "Toggle on/off the UI")
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
+	cvarManager->registerCvar("abbreviated_UI", "0", "Toggle on/off the abbreviated UI")
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {abbreviated_text = cvar.getBoolValue(); });
+	cvarManager->registerCvar("post_size", "100.f", "The size of the posts")
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {POST_SIZE = cvar.getBoolValue(); });
+
 	clear_shot_stats();
 
 #pragma region Shot Event Hooks
@@ -101,9 +108,6 @@ void PostCounterV1::onLoad()
 			}
 		});
 #pragma endregion
-
-	cvarManager->registerCvar("display_UI", "1", "Toggle on/off the UI")
-		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
 
 	LOG("PostCounter loaded");
 }
@@ -252,9 +256,9 @@ void PostCounterV1::RenderSettings()
 	ImGui::TextUnformatted("----------------");
 	//ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
 	//ImGui::Text("Player Team: %d", player_team);
-	ImGui::Text("Is Tracking Shots: %s", should_track_shots ? "Yes" : "No");
+	//ImGui::Text("Is Tracking Shots: %s", should_track_shots ? "Yes" : "No");
 	//ImGui::Text("Is Player Demolished: %s", is_demolished ? "Yes" : "No");
-	ImGui::TextUnformatted("----------------");
+	//ImGui::TextUnformatted("----------------");
 
 	CVarWrapper ui_cvar = _globalCvarManager->getCvar("display_UI");
 	if (!ui_cvar) return;
@@ -264,6 +268,33 @@ void PostCounterV1::RenderSettings()
 	}
 	if (ImGui::IsItemHovered()) {
 		ImGui::SetTooltip("Disables/Enables the onscreen UI");
+	}
+
+	CVarWrapper abbr_ui_cvar = _globalCvarManager->getCvar("abbreviated_UI");
+	if (!abbr_ui_cvar) return;
+	abbreviated_text = abbr_ui_cvar.getBoolValue();
+	if (ImGui::Checkbox("Enable abbreviated UI", &abbreviated_text)) {
+		abbr_ui_cvar.setValue(abbreviated_text);
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Enables/disables the abbreviated onscreen UI");
+	}
+
+	CVarWrapper post_size_cvar = _globalCvarManager->getCvar("post_size");
+	if (!post_size_cvar) return;
+	POST_SIZE = post_size_cvar.getFloatValue();
+	if (ImGui::SliderFloat("Post size", &POST_SIZE, 0.0f, 500.f)) {
+		post_size_cvar.setValue(POST_SIZE);
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Controls the area that the plugin sees as the post. This does not effect the crossbar height");
+	}
+	if (ImGui::Button("Reset post size")) {
+		post_size_cvar.setValue(100.f);
+		POST_SIZE = post_size_cvar.getFloatValue();
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Resets the post size to the default of 100uu");
 	}
 	if (ImGui::Button("Reset All Stats")) {
 		gameWrapper->Execute([this](GameWrapper* gw) {
@@ -278,9 +309,22 @@ void PostCounterV1::RenderSettings()
 void PostCounterV1::Render(CanvasWrapper canvas) {
 	if (display_text && should_track_shots) {
 		canvas.SetColor(255, 255, 255, 255);
-		std::string text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
-			" Goals: " + std::to_string(static_cast<int>(num_goals)) +
-			" Posts: " + std::to_string(static_cast<int>(num_posts));
+		std::string text = "";
+		switch (abbreviated_text)
+		{
+		default:
+			break;
+		case true:
+			text = "S: " + std::to_string(static_cast<int>(num_shots)) +
+				"G: " + std::to_string(static_cast<int>(num_goals)) +
+				"P: " + std::to_string(static_cast<int>(num_posts));
+			break;
+		case false:
+			text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +
+				" Goals: " + std::to_string(static_cast<int>(num_goals)) +
+				" Posts: " + std::to_string(static_cast<int>(num_posts));
+			break;
+		}
 		int fontSize = 2;
 		canvas.DrawString(text, fontSize, fontSize, true, true);
 		canvas.SetPosition(gameWrapper->GetScreenSize());

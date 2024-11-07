@@ -48,6 +48,7 @@ public:
 
 	int player_team;
 	bool display_text = true;
+	bool abbreviated_text = false;
 
 	bool should_track_shots = false;
 	bool is_demolished = false;
@@ -65,7 +66,7 @@ public:
 	const float BACK_OF_FIELD_BLUE = 4990.f;
 	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
-	const float POST_SIZE = 100.f;
+	float POST_SIZE = 100.f;
 #pragma endregion
 };
 
