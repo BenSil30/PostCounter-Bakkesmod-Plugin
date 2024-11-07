@@ -1,28 +1,31 @@
 #include "pch.h"
 #include "PostCounterV1.h"
 
-BAKKESMOD_PLUGIN(PostCounterV1, "See just how bad at shooting you are", plugin_version, PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(PostPercentage, "Post Percentage", plugin_version, 0)
 
 std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
 
-void PostCounterV1::onLoad()
+void PostPercentage::onLoad()
 {
 	_globalCvarManager = cvarManager;
 	cvarManager->registerNotifier("ResetPostCounterStats", [this](std::vector<std::string> args) {
 		clear_shot_stats();
 		}, "Clears shot stats", PERMISSION_ALL);
+	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
+		Render(canvas);
+		});
 
+#pragma region Cvars
 	cvarManager->registerCvar("display_UI", "1", "Toggle on/off the UI")
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
 	cvarManager->registerCvar("abbreviated_UI", "0", "Toggle on/off the abbreviated UI")
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {abbreviated_text = cvar.getBoolValue(); });
 	cvarManager->registerCvar("post_size", "100.f", "The size of the posts")
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {POST_SIZE = cvar.getBoolValue(); });
-
-	clear_shot_stats();
+#pragma endregion
 
 #pragma region Shot Event Hooks
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
+	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostPercentage::on_post_hit, this));
 	gameWrapper->HookEventWithCaller<TeamWrapper>("Function TAGame.Team_TA.OnScoreUpdated", [this](TeamWrapper caller, void* params, std::string eventname) {
 		// if player own goaled/was scored on
 		if (caller.GetTeamNum() != player_team) {
@@ -49,10 +52,6 @@ void PostCounterV1::onLoad()
 		});
 
 #pragma endregion
-
-	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
-		Render(canvas);
-		});
 
 #pragma region GameState Event Hooks
 	// manage for replays
@@ -92,7 +91,7 @@ void PostCounterV1::onLoad()
 			CarWrapper player_car = gameWrapper->GetLocalCar();
 			// player car will be null if demo'd, also catches for double run on demo-trade
 			if (!player_car && !is_demolished) {
-				LOG("player demolished, tracking paused", caller.GetOwnerName());
+				//LOG("player demolished, tracking paused", caller.GetOwnerName());
 				is_demolished = true;
 				should_track_shots = false;
 			}
@@ -104,19 +103,20 @@ void PostCounterV1::onLoad()
 			if (is_demolished) {
 				is_demolished = false;
 				should_track_shots = true;
-				LOG("player spawned tracking started again");
+				//LOG("player spawned tracking started again");
 			}
 		});
 #pragma endregion
 
+	clear_shot_stats();
 	LOG("PostCounter loaded");
 }
 
 #pragma	region Shot Tracking
 /*
-* hooked into EventHitWorld method, will call 'on_hit_goal' if goal reset is disabled
+* hooked into EventHitWorld method, will call 'on_goal_hit' if goal reset is disabled
 */
-void PostCounterV1::on_post_hit() {
+void PostPercentage::on_post_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 
@@ -133,7 +133,6 @@ void PostCounterV1::on_post_hit() {
 		// if in freeplay, check if ball is in goal (and if goal reset is disabled) to track goals
 		if (gameWrapper->IsInFreeplay()) {
 			if ((ball_hit_loc.Y <= GOAL_LINE_ORANGE && player_team == 1) || (ball_hit_loc.Y >= GOAL_LINE_BLUE && player_team == 0)) {
-				//LOG("{},{},{}", ball_hit_loc.X, ball_hit_loc.Y, ball_hit_loc.Z);
 				on_goal_hit();
 				return;
 			}
@@ -142,7 +141,6 @@ void PostCounterV1::on_post_hit() {
 		// check if ball has hit the post and update stats
 		if ((ball_hit_loc.Y < BACK_OF_FIELD_ORANGE && player_team == 1) || (ball_hit_loc.Y > BACK_OF_FIELD_BLUE && player_team == 0)) {
 			update_shot_stats(1.f, 0.f, 1.f);
-			//LOG("Post hit, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 		}
 	}
 }
@@ -150,11 +148,10 @@ void PostCounterV1::on_post_hit() {
 /**
 * called by 'on_post_hit' when in freeplay and goal scoring is disabled and hooked onto scoring method to increment stats
 */
-void PostCounterV1::on_goal_hit() {
+void PostPercentage::on_goal_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
 	update_shot_stats(1.f, 1.f, 0.f);
-	//LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
 
 #pragma	endregion
@@ -163,7 +160,7 @@ void PostCounterV1::on_goal_hit() {
 /**
 * Called on every ball touch. ret true if player last touched ball, false if not
 */
-bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
+bool PostPercentage::check_if_player_touched_last(CarWrapper callerCar) {
 	if (!should_track_shots) return false;
 
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
@@ -179,7 +176,7 @@ bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 /*
 * clears all shot stats AND resets last touch
 */
-void PostCounterV1::clear_shot_stats() {
+void PostPercentage::clear_shot_stats() {
 	num_shots = 0.f;
 	num_shots_in_matches = 0.f;
 
@@ -201,7 +198,7 @@ void PostCounterV1::clear_shot_stats() {
 /*
 * Increments shot stats by the parameter specified amounts AND resets last touch on ball
 */
-void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement) {
+void PostPercentage::update_shot_stats(float shotIncrement, float goalIncrement, float postIncrement) {
 	if (!should_track_shots) return;
 	num_shots += shotIncrement;
 	if (gameWrapper->IsInOnlineGame()) num_shots_in_matches += shotIncrement;
@@ -221,10 +218,8 @@ void PostCounterV1::update_shot_stats(float shotIncrement, float goalIncrement, 
 #pragma endregion
 
 #pragma region GUI
-void PostCounterV1::RenderSettings()
+void PostPercentage::RenderSettings()
 {
-	ImGui::TextUnformatted("Post Counter Plugin v1");
-
 	ImGui::Text("Shots: %.f", num_shots);
 	ImGui::Text("Shots in games: %.f", num_shots_in_matches);
 	float shots_per_match = 0.f;
@@ -306,7 +301,7 @@ void PostCounterV1::RenderSettings()
 	}
 }
 
-void PostCounterV1::Render(CanvasWrapper canvas) {
+void PostPercentage::Render(CanvasWrapper canvas) {
 	if (display_text && should_track_shots) {
 		canvas.SetColor(255, 255, 255, 255);
 		std::string text = "";
@@ -316,8 +311,8 @@ void PostCounterV1::Render(CanvasWrapper canvas) {
 			break;
 		case true:
 			text = "S: " + std::to_string(static_cast<int>(num_shots)) +
-				"G: " + std::to_string(static_cast<int>(num_goals)) +
-				"P: " + std::to_string(static_cast<int>(num_posts));
+				" G: " + std::to_string(static_cast<int>(num_goals)) +
+				" P: " + std::to_string(static_cast<int>(num_posts));
 			break;
 		case false:
 			text = "Shots: " + std::to_string(static_cast<int>(num_shots)) +

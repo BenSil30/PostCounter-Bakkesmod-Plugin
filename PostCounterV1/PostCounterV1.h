@@ -8,7 +8,7 @@
 #include "version.h"
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
-class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
+class PostPercentage : public BakkesMod::Plugin::BakkesModPlugin
 	, public SettingsWindowBase // Uncomment if you wanna render your own tab in the settings menu
 	//,public PluginWindowBase // Uncomment if you want to render your own plugin window
 {
