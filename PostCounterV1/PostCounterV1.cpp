@@ -78,7 +78,7 @@ void PostCounterV1::onLoad()
 			CarWrapper player_car = gameWrapper->GetLocalCar();
 			// player car will be null if demo'd, also catches for double run on demo-trade
 			if (!player_car && !is_demolished) {
-				//LOG("player demolished, tracking paused", caller.GetOwnerName());
+				LOG("player demolished, tracking paused", caller.GetOwnerName());
 				is_demolished = true;
 				should_track_shots = false;
 			}
@@ -87,13 +87,6 @@ void PostCounterV1::onLoad()
 		"Function TAGame.GameEvent_TA.AddCar",
 		[this](CarWrapper caller, void* params, std::string eventName)
 		{
-			// ignore start of game and end of game spawns
-			ServerWrapper server = gameWrapper->GetCurrentGameState();
-			if (!server) return;
-			int time_left = server.GetSecondsRemaining();
-			// todo: no magic number here for start of game and handle for OT
-			if (time_left >= 300 || time_left <= 0) return;
-
 			if (is_demolished) {
 				is_demolished = false;
 				should_track_shots = true;
