@@ -17,7 +17,7 @@ class PostCounterV1 : public BakkesMod::Plugin::BakkesModPlugin
 	void onLoad() override;
 	void onUnload() override; // Uncomment and implement if you need a unload method
 	void on_post_hit();
-	void on_hit_goal();
+	void on_goal_hit();
 	void on_goal_scored();
 	bool check_if_player_touched_last(CarWrapper caller);
 
@@ -59,3 +59,14 @@ public:
 
 	const float POST_SIZE = 0.f;
 };
+
+template <typename T, typename std::enable_if<std::is_base_of<ObjectWrapper, T>::value>::type*>
+void GameWrapper::HookEventWithCaller(std::string eventName,
+	std::function<void(T caller, void* params, std::string eventName)> callback)
+{
+	auto wrapped_callback = [callback](ActorWrapper caller, void* params, std::string eventName)
+		{
+			callback(T(caller.memory_address), params, eventName);
+		};
+	HookEventWithCaller<ActorWrapper>(eventName, wrapped_callback);
+}

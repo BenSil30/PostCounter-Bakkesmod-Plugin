@@ -16,7 +16,9 @@ void PostCounterV1::onLoad()
 
 #pragma region Shot Event Hooks
 	gameWrapper->HookEvent("Function TAGame.Ball_TA.EventHitWorld", std::bind(&PostCounterV1::on_post_hit, this));
-	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_scored, this));
+	gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal", std::bind(&PostCounterV1::on_goal_hit, this));
+
+	// on every ball touch, store if the player touched it most recently and which team the player is on
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall", [this](CarWrapper caller, void* params, std::string eventname) {
 		if (!should_track_shots) return;
 		if (!caller) return;
@@ -28,6 +30,21 @@ void PostCounterV1::onLoad()
 			player_team = playerPri.GetTeamNum(); // 0 for blue, 1 for orange
 		}
 		});
+
+	// if player scores an own goal, don't count it towards the stats. the method for the goal will run every goal, but this will check if it was an own goal
+	gameWrapper->HookEventWithCaller<TeamWrapper>("Function TAGame.Team_TA.OnScoreUpdated", [this](TeamWrapper caller, void* params, std::string eventname) {
+		if (!check_if_player_touched_last) return;
+		// todo: this is being set to false when the goal method runs first, which then skips this. other than that, the functionality works.
+		// todo cont: 'check_if_player_touched_last' has to be set to false when the stats are updated to ignore the ball bouncing on the goal line counting as multiple shots
+		if (caller.GetTeamNum() != player_team) {
+			LOG("player own goaled");
+			update_shot_stats(-1.f, -1.f, 0.f);
+		}
+		else {
+			LOG("{}", caller.GetTeamNum());
+		}
+		});
+
 #pragma endregion
 
 	gameWrapper->RegisterDrawable([this](CanvasWrapper canvas) {
@@ -38,38 +55,33 @@ void PostCounterV1::onLoad()
 	// manage for replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.BeginState",
 		[this](std::string eventName) {
-			LOG("here");
 			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.EndState",
 		[this](std::string eventName) {
-			LOG("no here");
 			should_track_shots = true;
 		});
 
 	// only track during the proper states/log matches. Subscribing to these events also prevents crashes at the end of matches/during replays
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.WaitingForPlayers.BeginState",
 		[this](std::string eventName) {
-			//LOG("nope here");
 			should_track_shots = true;
 			if (gameWrapper->IsInOnlineGame()) num_matches++;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
 		[this](std::string eventName) {
-			//LOG("nah here");
 			should_track_shots = false;
 		});
 	gameWrapper->HookEvent("Function TAGame.Mutator_Freeplay_TA.Init",
 		[this](std::string eventName) {
-			//LOG("def here");
 			should_track_shots = true;
 		});
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed",
 		[this](std::string eventName) {
-			//LOG("just here");
 			should_track_shots = false;
 		});
 
+	// todo: build and test this
 	// manage for demo crashing
 	gameWrapper->HookEventWithCaller<CarWrapper>(
 		"Function TAGame.Car_TA.OnDemolishedGoalExplosion",
@@ -125,7 +137,7 @@ void PostCounterV1::on_post_hit() {
 		if (gameWrapper->IsInFreeplay()) {
 			if ((ball_hit_loc.Y <= GOAL_LINE_ORANGE && player_team == 1) || (ball_hit_loc.Y >= GOAL_LINE_BLUE && player_team == 0)) {
 				//LOG("{},{},{}", ball_hit_loc.X, ball_hit_loc.Y, ball_hit_loc.Z);
-				on_hit_goal();
+				on_goal_hit();
 				return;
 			}
 		}
@@ -138,29 +150,11 @@ void PostCounterV1::on_post_hit() {
 }
 
 /**
-* called by 'on_post_hit' when in freeplay and goal scoring is disabled
+* called by 'on_post_hit' when in freeplay and goal scoring is disabled and hooked onto scoring method to increment stats
 */
-void PostCounterV1::on_hit_goal() {
+void PostCounterV1::on_goal_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
-	update_shot_stats(1.f, 1.f, 0.f);
-	//LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
-}
-
-// hooked into method when goal is scored
-void PostCounterV1::on_goal_scored() {
-	if (!should_track_shots) return;
-	if (!player_touched_last) return;
-
-	// check if scoring team was player's team
-	//ServerWrapper server = gameWrapper->GetCurrentGameState();
-	//if (!server) return;
-
-	//TeamWrapper scoring_team = server.GetWinningTeam();
-	//if (!scoring_team) return;
-	//int team = scoring_team.GetTeamNum();
-	//if (team != player_team) return;
-
 	update_shot_stats(1.f, 1.f, 0.f);
 	//LOG("Goal scored, Shots: {}, Goals:{}, Posts:{} Accuracy:{}", num_shots, num_goals, num_posts, accuracy);
 }
@@ -173,6 +167,7 @@ void PostCounterV1::on_goal_scored() {
 */
 bool PostCounterV1::check_if_player_touched_last(CarWrapper callerCar) {
 	if (!should_track_shots) return false;
+
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return false;
 	BallWrapper ball = server.GetBall();
@@ -233,6 +228,7 @@ void PostCounterV1::RenderSettings()
 	ImGui::Text("Player Touched Last: %s", player_touched_last ? "Yes" : "No");
 	ImGui::Text("Player Team: %d", player_team);
 	ImGui::Text("Is Tracking Shots: %s", should_track_shots ? "Yes" : "No");
+	ImGui::Text("Is Player Demolished: %s", is_demolished ? "Yes" : "No");
 	ImGui::TextUnformatted("----------------");
 
 	CVarWrapper ui_cvar = _globalCvarManager->getCvar("display_UI");
