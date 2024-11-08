@@ -4,6 +4,7 @@
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "bakkesmod/plugin/pluginwindow.h"
 #include "bakkesmod/plugin/PluginSettingsWindow.h"
+#include <random>
 
 #include "version.h"
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
@@ -17,7 +18,6 @@ class PostPercentage : public BakkesMod::Plugin::BakkesModPlugin
 	void onLoad() override;
 	void on_post_hit();
 	void on_goal_hit();
-	void on_goal_scored();
 	bool check_if_player_touched_last(CarWrapper caller);
 
 	void clear_shot_stats();
@@ -26,6 +26,7 @@ public:
 	void RenderSettings() override;  // Uncomment if you wanna render your own tab in the settings menu
 	//void RenderWindow() override ; // Uncomment if you want to render your own plugin window
 	void Render(CanvasWrapper canvas);
+	std::string pick_toast_insult(bool isPost);
 
 #pragma region Stats
 	float num_shots = 0.f;
@@ -49,6 +50,7 @@ public:
 	int player_team;
 	bool display_text = true;
 	bool abbreviated_text = false;
+	bool enable_toasts = true;
 
 	bool should_track_shots = false;
 	bool is_demolished = false;
