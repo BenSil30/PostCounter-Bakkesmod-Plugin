@@ -8,6 +8,7 @@ std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
 void PostPercentage::onLoad()
 {
 	_globalCvarManager = cvarManager;
+
 	cvarManager->registerNotifier("ResetPostCounterStats", [this](std::vector<std::string> args) {
 		clear_shot_stats();
 		}, "Clears shot stats", PERMISSION_ALL);
@@ -25,15 +26,26 @@ void PostPercentage::onLoad()
 		Render(canvas);
 		});
 
+	//todo: persistent storage
 #pragma region Cvars
-	cvarManager->registerCvar("UI_display", "1", "Toggle on/off the UI")
+	cvarManager->registerCvar("UI_display", "1", "Toggle on/off the UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
-	cvarManager->registerCvar("abbreviated_UI", "0", "Toggle on/off the abbreviated UI")
+
+	cvarManager->registerCvar("abbreviated_UI", "0", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {abbreviated_text = cvar.getBoolValue(); });
-	cvarManager->registerCvar("toast_notifications_toggle", "1", "Toggle on/off the abbreviated UI")
+
+	cvarManager->registerCvar("toast_notifications_toggle", "1", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {enable_toasts = cvar.getBoolValue(); });
-	cvarManager->registerCvar("post_size", "100.f", "The size of the posts")
-		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {POST_SIZE = cvar.getBoolValue(); });
+
+	cvarManager->registerCvar("enable_in_training_toggle", "1", "Toggle on/off tracking in freeplay", true, true, 0, true, 1, true)
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {enable_in_training = cvar.getBoolValue(); });
+
+	cvarManager->registerCvar("reset_after_every_game_toggle", "0", "Toggle on/off resetting stats after each game", true, true, 0, true, 1, true)
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {reset_every_match = cvar.getBoolValue(); });
+
+	cvarManager->registerCvar("post_size", "100.f", "The size of the posts", true, true, 0.f, true, 500.f, true)
+		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {POST_SIZE = cvar.getFloatValue(); });
+
 #pragma endregion
 
 #pragma region Shot Event Hooks
@@ -90,6 +102,7 @@ void PostPercentage::onLoad()
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.EventMatchEnded",
 		[this](std::string eventName) {
 			should_track_shots = false;
+			if (reset_every_match) clear_shot_stats();
 		});
 	gameWrapper->HookEvent("Function TAGame.Mutator_Freeplay_TA.Init",
 		[this](std::string eventName) {
@@ -129,6 +142,15 @@ void PostPercentage::onLoad()
 	LOG("PostCounter loaded");
 }
 
+void PostPercentage::onUnload() {
+	cvarManager->removeCvar("UI_display");
+	cvarManager->removeCvar("abbreviated_UI");
+	cvarManager->removeCvar("toast_notifications_toggle");
+	cvarManager->removeCvar("enable_in_training_toggle");
+	cvarManager->removeCvar("reset_after_every_game_toggle");
+	cvarManager->removeCvar("post_size");
+}
+
 #pragma	region Shot Tracking
 /*
 * hooked into EventHitWorld method, will call 'on_goal_hit' if goal reset is disabled
@@ -136,6 +158,7 @@ void PostPercentage::onLoad()
 void PostPercentage::on_post_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
+	if (!enable_in_training && (gameWrapper->IsInFreeplay() || gameWrapper->IsInCustomTraining())) return;
 
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
@@ -145,7 +168,7 @@ void PostPercentage::on_post_hit() {
 	if (!car) return;
 
 	const Vector ball_hit_loc = ball.GetLocation();
-	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < CROSSBAR_HEIGHT)
+	if ((ball_hit_loc.Z > GROUND_LEVEL && ball_hit_loc.Z < (CROSSBAR_HEIGHT + POST_SIZE))
 		&& (ball_hit_loc.X > (LEFT_POST - POST_SIZE) && ball_hit_loc.X < (RIGHT_POST + POST_SIZE))) {
 		// if in freeplay, check if ball is in goal (and if goal reset is disabled) to track goals
 		if (gameWrapper->IsInFreeplay()) {
@@ -173,6 +196,7 @@ void PostPercentage::on_post_hit() {
 void PostPercentage::on_goal_hit() {
 	if (!should_track_shots) return;
 	if (!player_touched_last) return;
+	if (!enable_in_training && (gameWrapper->IsInFreeplay() || gameWrapper->IsInCustomTraining())) return;
 	update_shot_stats(1.f, 1.f, 0.f);
 }
 
@@ -242,6 +266,7 @@ void PostPercentage::update_shot_stats(float shotIncrement, float goalIncrement,
 #pragma region GUI
 void PostPercentage::RenderSettings()
 {
+#pragma region Stat indicators
 	ImGui::Columns(2, nullptr, true);
 	ImGui::SetColumnWidth(0, 200.f);
 	ImGui::SetColumnWidth(1, 200.f);
@@ -277,7 +302,9 @@ void PostPercentage::RenderSettings()
 
 	ImGui::Columns(1); // End columns
 	ImGui::Separator();
+#pragma endregion
 
+#pragma region Plugin Setting Controls
 	CVarWrapper ui_cvar = _globalCvarManager->getCvar("UI_display");
 	if (!ui_cvar) return;
 	display_text = ui_cvar.getBoolValue();
@@ -308,6 +335,16 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Disables/Enables the onscreen toast notifications. You MUST have notifications enabled in BakkesMod settings under 'misc'");
 	}
 
+	CVarWrapper training_cvar = _globalCvarManager->getCvar("enable_in_training_toggle");
+	if (!training_cvar) return;
+	enable_in_training = training_cvar.getBoolValue();
+	if (ImGui::Checkbox("Enable in training", &enable_in_training)) {
+		training_cvar.setValue(enable_in_training);
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Enables/disables tracking in freeplay/custom training");
+	}
+
 	CVarWrapper post_size_cvar = _globalCvarManager->getCvar("post_size");
 	if (!post_size_cvar) return;
 	POST_SIZE = post_size_cvar.getFloatValue();
@@ -332,6 +369,17 @@ void PostPercentage::RenderSettings()
 	if (ImGui::IsItemHovered()) {
 		ImGui::SetTooltip("Resets ALL stats for the session. This cannot be undone");
 	}
+
+	CVarWrapper reset_cvar = _globalCvarManager->getCvar("reset_after_every_game_toggle");
+	if (!reset_cvar) return;
+	reset_every_match = reset_cvar.getBoolValue();
+	if (ImGui::Checkbox("Reset after every match", &reset_every_match)) {
+		reset_cvar.setValue(reset_every_match);
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::SetTooltip("Toggles resetting stats after each match. This will effectively disable the per-game stats");
+	}
+#pragma endregion
 }
 
 void PostPercentage::Render(CanvasWrapper canvas) {

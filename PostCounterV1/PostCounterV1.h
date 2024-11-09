@@ -7,6 +7,7 @@
 #include <random>
 
 #include "version.h"
+
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
 class PostPercentage : public BakkesMod::Plugin::BakkesModPlugin
@@ -16,6 +17,7 @@ class PostPercentage : public BakkesMod::Plugin::BakkesModPlugin
 	//std::shared_ptr<bool> enabled;
 
 	void onLoad() override;
+	void onUnload() override;
 	void on_post_hit();
 	void on_goal_hit();
 	bool check_if_player_touched_last(CarWrapper caller);
@@ -48,9 +50,15 @@ public:
 #pragma endregion
 
 	int player_team;
+
+#pragma region Settings
 	bool display_text = true;
 	bool abbreviated_text = false;
 	bool enable_toasts = true;
+	bool enable_in_training = true;
+	bool reset_every_match = false;
+	float POST_SIZE = 100.f;
+#pragma endregion
 
 	bool should_track_shots = false;
 	bool is_demolished = false;
@@ -59,8 +67,8 @@ public:
 	const float LEFT_POST = -1250.f;
 	const float RIGHT_POST = 1250.f;
 
-	const float CROSSBAR_HEIGHT = 750.f;
-	const float GROUND_LEVEL = 95.f;
+	const float CROSSBAR_HEIGHT = 800.f;
+	const float GROUND_LEVEL = 100.f;
 
 	const float GOAL_LINE_BLUE = 5120.f;
 	const float GOAL_LINE_ORANGE = -5120.f;
@@ -68,7 +76,6 @@ public:
 	const float BACK_OF_FIELD_BLUE = 4990.f;
 	const float BACK_OF_FIELD_ORANGE = -4990.f;
 
-	float POST_SIZE = 100.f;
 #pragma endregion
 };
 
