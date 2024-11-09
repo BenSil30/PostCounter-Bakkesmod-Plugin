@@ -26,24 +26,23 @@ void PostPercentage::onLoad()
 		Render(canvas);
 		});
 
-	//todo: persistent storage
 #pragma region Cvars
-	cvarManager->registerCvar("UI_display", "1", "Toggle on/off the UI", true, true, 0, true, 1, true)
+	cvarManager->registerCvar("PP_UI_display", "1", "Toggle on/off the UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {display_text = cvar.getBoolValue(); });
 
-	cvarManager->registerCvar("abbreviated_UI", "0", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
+	cvarManager->registerCvar("PP_abbreviated_UI", "0", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {abbreviated_text = cvar.getBoolValue(); });
 
-	cvarManager->registerCvar("toast_notifications_toggle", "1", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
+	cvarManager->registerCvar("PP_toast_notifications_toggle", "1", "Toggle on/off the abbreviated UI", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {enable_toasts = cvar.getBoolValue(); });
 
-	cvarManager->registerCvar("enable_in_training_toggle", "1", "Toggle on/off tracking in freeplay", true, true, 0, true, 1, true)
+	cvarManager->registerCvar("PP_enable_in_training_toggle", "1", "Toggle on/off tracking in freeplay", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {enable_in_training = cvar.getBoolValue(); });
 
-	cvarManager->registerCvar("reset_after_every_game_toggle", "0", "Toggle on/off resetting stats after each game", true, true, 0, true, 1, true)
+	cvarManager->registerCvar("PP_reset_after_every_game_toggle", "0", "Toggle on/off resetting stats after each game", true, true, 0, true, 1, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {reset_every_match = cvar.getBoolValue(); });
 
-	cvarManager->registerCvar("post_size", "100.f", "The size of the posts", true, true, 0.f, true, 500.f, true)
+	cvarManager->registerCvar("PP_post_size", "100.f", "The size of the posts", true, true, 0.f, true, 500.f, true)
 		.addOnValueChanged([this](std::string oldValue, CVarWrapper cvar) {POST_SIZE = cvar.getFloatValue(); });
 
 #pragma endregion
@@ -143,12 +142,12 @@ void PostPercentage::onLoad()
 }
 
 void PostPercentage::onUnload() {
-	cvarManager->removeCvar("UI_display");
-	cvarManager->removeCvar("abbreviated_UI");
-	cvarManager->removeCvar("toast_notifications_toggle");
-	cvarManager->removeCvar("enable_in_training_toggle");
-	cvarManager->removeCvar("reset_after_every_game_toggle");
-	cvarManager->removeCvar("post_size");
+	cvarManager->removeCvar("PP_UI_display");
+	cvarManager->removeCvar("PP_abbreviated_UI");
+	cvarManager->removeCvar("PP_toast_notifications_toggle");
+	cvarManager->removeCvar("PP_enable_in_training_toggle");
+	cvarManager->removeCvar("PP_reset_after_every_game_toggle");
+	cvarManager->removeCvar("PP_post_size");
 }
 
 #pragma	region Shot Tracking
@@ -305,7 +304,7 @@ void PostPercentage::RenderSettings()
 #pragma endregion
 
 #pragma region Plugin Setting Controls
-	CVarWrapper ui_cvar = _globalCvarManager->getCvar("UI_display");
+	CVarWrapper ui_cvar = _globalCvarManager->getCvar("PP_UI_display");
 	if (!ui_cvar) return;
 	display_text = ui_cvar.getBoolValue();
 	if (ImGui::Checkbox("Onscreen UI", &display_text)) {
@@ -315,7 +314,7 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Disables/Enables the onscreen UI");
 	}
 
-	CVarWrapper abbr_ui_cvar = _globalCvarManager->getCvar("abbreviated_UI");
+	CVarWrapper abbr_ui_cvar = _globalCvarManager->getCvar("PP_abbreviated_UI");
 	if (!abbr_ui_cvar) return;
 	abbreviated_text = abbr_ui_cvar.getBoolValue();
 	if (ImGui::Checkbox("Abbreviated UI", &abbreviated_text)) {
@@ -325,7 +324,7 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Enables/disables the abbreviated onscreen UI");
 	}
 
-	CVarWrapper toast_cvar = _globalCvarManager->getCvar("toast_notifications_toggle");
+	CVarWrapper toast_cvar = _globalCvarManager->getCvar("PP_toast_notifications_toggle");
 	if (!toast_cvar) return;
 	enable_toasts = toast_cvar.getBoolValue();
 	if (ImGui::Checkbox("Toast Notifications", &enable_toasts)) {
@@ -335,7 +334,7 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Disables/Enables the onscreen toast notifications. You MUST have notifications enabled in BakkesMod settings under 'misc'");
 	}
 
-	CVarWrapper training_cvar = _globalCvarManager->getCvar("enable_in_training_toggle");
+	CVarWrapper training_cvar = _globalCvarManager->getCvar("PP_enable_in_training_toggle");
 	if (!training_cvar) return;
 	enable_in_training = training_cvar.getBoolValue();
 	if (ImGui::Checkbox("Enable in training", &enable_in_training)) {
@@ -345,7 +344,7 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Enables/disables tracking in freeplay/custom training");
 	}
 
-	CVarWrapper post_size_cvar = _globalCvarManager->getCvar("post_size");
+	CVarWrapper post_size_cvar = _globalCvarManager->getCvar("PP_post_size");
 	if (!post_size_cvar) return;
 	POST_SIZE = post_size_cvar.getFloatValue();
 	if (ImGui::SliderFloat("Post Size", &POST_SIZE, 0.0f, 500.f)) {
@@ -370,7 +369,7 @@ void PostPercentage::RenderSettings()
 		ImGui::SetTooltip("Resets ALL stats for the session. This cannot be undone");
 	}
 
-	CVarWrapper reset_cvar = _globalCvarManager->getCvar("reset_after_every_game_toggle");
+	CVarWrapper reset_cvar = _globalCvarManager->getCvar("PP_reset_after_every_game_toggle");
 	if (!reset_cvar) return;
 	reset_every_match = reset_cvar.getBoolValue();
 	if (ImGui::Checkbox("Reset after every match", &reset_every_match)) {
